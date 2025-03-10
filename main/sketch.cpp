@@ -164,13 +164,16 @@ void processGamepad(ControllerPtr ctl) {
   val_button_STICK_L = val_button & (1<<BUTTON_STICK_L);
   val_button_STICK_R = val_button & (1<<BUTTON_STICK_R);
 
-  dir = ctl->axisX() /1023.0;
-  // retire la zone morte
-  if (ctl->axisY() > -25 && ctl->axisY() < 25 && ctl->axisX() > -25 && ctl->axisX() < 25) {
+    // retire la zone morte
+    if (ctl->axisY() > -25 && ctl->axisY() < 25 && ctl->axisX() > -25 && ctl->axisX() < 25) {
     // code for when left joystick is at idle
     dir = 0;
     vit_cons = 0;
-  }
+    }
+      
+    dir= (- ctl->axisX()/512.0)*0.05;
+    vit_cons = (- ctl->axisY()/512.0)*0.12;
+    
 
 }
 
@@ -194,6 +197,7 @@ void controle(void *parameters)
   xLastWakeTime = xTaskGetTickCount();
   while (1)
   {
+    ControllerPtr ctl;
     mpu.getEvent(&a, &g, &temp);
     
     // lis les valeurs de la manette
@@ -259,7 +263,9 @@ void controle(void *parameters)
     // Calcul de la commande
     ec_theta = P_theta + D_theta + I_theta;
 
-    dir= vit_D_cons-vit_G_cons;
+
+
+
     // sature les commandes + offset pour retirer la zone morte des moteurs [-0.2, 0.2]
     ec_mot_D = saturation_ec_mot(-(ec_theta - dir));
     ec_mot_G = saturation_ec_mot(-(ec_theta + dir));
@@ -476,7 +482,7 @@ void loop() {
     // If your main loop doesn't have one, just add a simple `vTaskDelay(1)`.
     // Detailed info here:
     // https://stackoverflow.com/questions/66278271/task-watchdog-got-triggered-the-tasks-did-not-reset-the-watchdog-in-time
-    Serial.printf("%3.5f  %3.5f  %3.5f  %3.5f  %3.5f  %3.5f  %3.5f  %3.5f\n", ec_vitt_D, ec_vitt_G, ec_vitt_cons, theta_cons, theta_somme, theta0, val_vbatt, dir);
+    //Serial.printf("%3.5f  %3.5f  %3.5f  %3.5f  %3.5f  %3.5f  %3.5f  %3.5f  %3.5f\n", ec_vitt_D, ec_vitt_G, ec_vitt_cons, theta_cons, theta_somme, theta0, val_vbatt, dir, vit_cons);
     FlagCalcul = 0;
   }
   

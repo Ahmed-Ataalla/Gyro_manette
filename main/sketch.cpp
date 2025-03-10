@@ -266,14 +266,14 @@ void controle(void *parameters)
     
 
     // ecriture des PWM
-    analogWrite(PIN_PWM_A_G, 1023 * (0.5 + ec_mot_G  ));
-    analogWrite(PIN_PWM_B_G, 1023 * (0.5 - ec_mot_G  ));
-    analogWrite(PIN_PWM_A_D, 1023 * (0.5 + ec_mot_D  ));
-    analogWrite(PIN_PWM_B_D, 1023 * (0.5 - ec_mot_D  ));
-    // ledcWrite(CANAL_PWM_A_G, (int)(1023 * (0.5 + ec_mot_G )));
-    // ledcWrite(CANAL_PWM_B_G, (int)(1023 * (0.5 - ec_mot_G )));
-    // ledcWrite(CANAL_PWM_A_D, (int)(1023 * (0.5 + ec_mot_D )));
-    // ledcWrite(CANAL_PWM_B_D, (int)(1023 * (0.5 - ec_mot_D )));
+    // analogWrite(PIN_PWM_A_G, 1023 * (0.5 + ec_mot_G  ));
+    // analogWrite(PIN_PWM_B_G, 1023 * (0.5 - ec_mot_G  ));
+    // analogWrite(PIN_PWM_A_D, 1023 * (0.5 + ec_mot_D  ));
+    // analogWrite(PIN_PWM_B_D, 1023 * (0.5 - ec_mot_D  ));
+    ledcWriteChannel(CANAL_PWM_A_G, (int)(1023 * (0.5 + ec_mot_G )));
+    ledcWriteChannel(CANAL_PWM_B_G, (int)(1023 * (0.5 - ec_mot_G )));
+    ledcWriteChannel(CANAL_PWM_A_D, (int)(1023 * (0.5 + ec_mot_D )));
+    ledcWriteChannel(CANAL_PWM_B_D, (int)(1023 * (0.5 - ec_mot_D )));
 
     compteur_codeur_D_p = compteur_codeur_D;
     compteur_codeur_G_p = compteur_codeur_G;
@@ -338,14 +338,14 @@ void setup() {
   B_vit = Tau / Te * A_vit;
 
   // setup PWM
-  ledcChangeFrequency(PIN_PWM_A_D, FREQUENCE, RESOLUTION);
-  ledcChangeFrequency(PIN_PWM_B_D, FREQUENCE, RESOLUTION);
-  ledcChangeFrequency(PIN_PWM_A_G, FREQUENCE, RESOLUTION);
-  ledcChangeFrequency(PIN_PWM_B_G, FREQUENCE, RESOLUTION);
-  // ledcAttachChannel(PIN_PWM_A_D, FREQUENCE, RESOLUTION ,CANAL_PWM_A_D);
-  // ledcAttachChannel(PIN_PWM_B_D, FREQUENCE, RESOLUTION ,CANAL_PWM_B_D);
-  // ledcAttachChannel(PIN_PWM_A_G, FREQUENCE, RESOLUTION ,CANAL_PWM_A_G);
-  // ledcAttachChannel(PIN_PWM_B_G, FREQUENCE, RESOLUTION ,CANAL_PWM_B_G);
+  // ledcChangeFrequency(PIN_PWM_A_D, FREQUENCE, RESOLUTION);
+  // ledcChangeFrequency(PIN_PWM_B_D, FREQUENCE, RESOLUTION);
+  // ledcChangeFrequency(PIN_PWM_A_G, FREQUENCE, RESOLUTION);
+  // ledcChangeFrequency(PIN_PWM_B_G, FREQUENCE, RESOLUTION);
+  ledcAttachChannel(PIN_PWM_A_D, FREQUENCE, RESOLUTION ,CANAL_PWM_A_D);
+  ledcAttachChannel(PIN_PWM_B_D, FREQUENCE, RESOLUTION ,CANAL_PWM_B_D);
+  ledcAttachChannel(PIN_PWM_A_G, FREQUENCE, RESOLUTION ,CANAL_PWM_A_G);
+  ledcAttachChannel(PIN_PWM_B_G, FREQUENCE, RESOLUTION ,CANAL_PWM_B_G);
 
   pinMode(PIN_LED, OUTPUT);
 

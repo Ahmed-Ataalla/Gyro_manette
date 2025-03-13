@@ -83,6 +83,9 @@ float Tau_D = 20;
 float vit_D_cons, vit_G_cons;
 float dir;
 
+float erreur_vit, erreur_vit_p;
+float P_vit, D_vit, D_vit_F, D_vit_F_p=0, ec_vit;
+
 short val_button;
 bool val_button_A;
 bool val_button_B;
@@ -151,9 +154,6 @@ void onDisconnectedController(ControllerPtr ctl) {
 // ========= GAME CONTROLLER ACTIONS SECTION ========= //
 
 void processGamepad(ControllerPtr ctl) {
-    // There are different ways to query whether a button is pressed.
-    // By query each button individually:
-    //  a(), b(), x(), y(), l1(), etc...
     // lis la valeur du stick gauche et boutons
     val_button = ctl->buttons();
     val_button_A = val_button & (1 << BUTTON_A);
@@ -174,9 +174,10 @@ void processGamepad(ControllerPtr ctl) {
 
     dir = (-ctl->axisX() / 512.0) * 0.05;
     vit_cons = (-ctl->axisY() / 512.0) * 0.12;
+
     switch (etat_ctl) {
         case 0:
-            kp_theta = 0, kd_theta = 0, kp_vit = 0, kd_vit = 0;
+            kp_theta = 0, kd_theta = 0, kp_vit = 0, kd_vit = 0, dir = 0;
             if (val_button_LB)
                 etat_ctl = 1;
             break;
@@ -189,24 +190,30 @@ void processGamepad(ControllerPtr ctl) {
                 etat_ctl = 2;
             if (val_button_B)
                 etat_ctl = 3;
+            if (val_vbatt <= 9)
+                etat_ctl = 0;
             break;
         case 2:
-            dir = 0.08;
+            dir = 0.05;
             if (val_button_A)
                 etat_ctl = 1;
             if (val_button_RB)
                 etat_ctl = 0;
             if (val_button_B)
                 etat_ctl = 3;
+            if (val_vbatt <= 9)
+                etat_ctl = 0;
             break;
         case 3:
-            dir = -0.08;
+            dir = -0.05;
             if (val_button_B)
                 etat_ctl = 1;
             if (val_button_RB)
                 etat_ctl = 0;
             if (val_button_A)
                 etat_ctl = 2;
+            if (val_vbatt <= 9)
+                etat_ctl = 0;
             break;
     }
 }
@@ -227,7 +234,6 @@ void controle(void* parameters) {
     TickType_t xLastWakeTime;
     xLastWakeTime = xTaskGetTickCount();
     while (1) {
-        ControllerPtr ctl;
         mpu.getEvent(&a, &g, &temp);
 
         // lis les valeurs de la manette
@@ -241,7 +247,6 @@ void controle(void* parameters) {
         theta_acc_F_p = theta_acc_F;                                // enregistre la valeur précedente
 
         // Calcul avec la vitesse de rotation
-        // theta_w += (Te / 1000) * -g.gyro.z; // axe z qui tourne intégrale de la vitesse de rotation division par 1000
         // pour passer en seconde avec le filtre sert a rien juste pour observer l'intégrale Calcul simplifié
         theta_w_F = (Tau / 1000) * A_teta * -g.gyro.z + B_teta * theta_w_F_p;  // filtre passe bas
         theta_w_F_p = theta_w_F;
@@ -256,30 +261,18 @@ void controle(void* parameters) {
         // - pour avoir une vitesse positive quand il avance
         vitesse_D = -(2 * PI * RAYON_ROUE * (compteur_codeur_D - compteur_codeur_D_p) / NB_TICK_TOURCOMPLET) / (Te);
         vitesse_G = -(2 * PI * RAYON_ROUE * (compteur_codeur_G - compteur_codeur_G_p) / NB_TICK_TOURCOMPLET) / (Te);
+        vit = (vitesse_D + vitesse_G) / 2;
 
-        // calcul PID vitesse NON FONCTIONNEL
-        erreur_vit_D = vit_cons - vitesse_D;
-        erreur_vit_G = vit_cons - vitesse_G;
+        // calcul PID vitesse
+        erreur_vit = vit_cons - vit;
+        P_vit = kp_vit * erreur_vit;
+        D_vit = kd_vit * (erreur_vit - erreur_vit_p) / (Te / 1000);
+        D_vit_F = (Tau_D / 1000) * A_vit * D_vit + B_vit * D_vit_F_p;
+        D_vit_F_p = D_vit_F;
+        ec_vit = P_vit + D_vit_F;
 
-        P_vit_D = kp_vit * erreur_vit_D;
-        P_vit_G = kp_vit * erreur_vit_G;
-
-        D_vit_D = kd_vit * (erreur_vit_D - erreur_vit_D_p) / (Te / 1000);
-        D_vit_G = kd_vit * (erreur_vit_D - erreur_vit_D_p) / (Te / 1000);
-
-        // Filtrage de la dérivée
-        D_vit_D_F = (Tau_D / 1000) * A_vit * D_vit_D + B_vit * D_vit_D_F_p;
-        D_vit_G_F = (Tau_D / 1000) * A_vit * D_vit_D + B_vit * D_vit_G_F_p;
-        D_vit_D_F_p = D_vit_D_F;
-        D_vit_G_F_p = D_vit_G_F;
-
-        ec_vitt_D = P_vit_D + D_vit_D_F;
-        ec_vitt_G = P_vit_G + D_vit_G_F;
-
-        ec_vitt_cons = (ec_vitt_D + ec_vitt_G) / 2;
-
-        ec_vitt_cons = saturation_ec_vit(ec_vitt_cons);
-        theta_cons = ec_vitt_cons;
+        ec_vit = saturation_ec_vit(ec_vit);
+        theta_cons = ec_vit;
 
         // Asservissement de position
         erreur_theta = theta_cons - theta_somme + theta0;
@@ -298,10 +291,7 @@ void controle(void* parameters) {
         ec_mot_G = saturation_ec_mot(-(ec_theta + dir));
 
         // ecriture des PWM
-        // analogWrite(PIN_PWM_A_G, 1023 * (0.5 + ec_mot_G  ));
-        // analogWrite(PIN_PWM_B_G, 1023 * (0.5 - ec_mot_G  ));
-        // analogWrite(PIN_PWM_A_D, 1023 * (0.5 + ec_mot_D  ));
-        // analogWrite(PIN_PWM_B_D, 1023 * (0.5 - ec_mot_D  ));
+
         ledcWriteChannel(CANAL_PWM_A_G, (int)(1023 * (0.5 + ec_mot_G)));
         ledcWriteChannel(CANAL_PWM_B_G, (int)(1023 * (0.5 - ec_mot_G)));
         ledcWriteChannel(CANAL_PWM_A_D, (int)(1023 * (0.5 + ec_mot_D)));
@@ -362,10 +352,6 @@ void setup() {
     B_vit = Tau / Te * A_vit;
 
     // setup PWM
-    // ledcChangeFrequency(PIN_PWM_A_D, FREQUENCE, RESOLUTION);
-    // ledcChangeFrequency(PIN_PWM_B_D, FREQUENCE, RESOLUTION);
-    // ledcChangeFrequency(PIN_PWM_A_G, FREQUENCE, RESOLUTION);
-    // ledcChangeFrequency(PIN_PWM_B_G, FREQUENCE, RESOLUTION);
     ledcAttachChannel(PIN_PWM_A_D, FREQUENCE, RESOLUTION, CANAL_PWM_A_D);
     ledcAttachChannel(PIN_PWM_B_D, FREQUENCE, RESOLUTION, CANAL_PWM_B_D);
     ledcAttachChannel(PIN_PWM_A_G, FREQUENCE, RESOLUTION, CANAL_PWM_A_G);
@@ -474,7 +460,7 @@ void loop() {
                 break;
             case 1:
                 digitalWrite(PIN_LED, LOW);
-                if ((vit_cons < 0.025) || (vit_cons > -0.025))
+                if ((vit_cons < 0.025) && (vit_cons > -0.025))
                     etat_led = 0;
                 if (val_vbatt < 9.3)
                     etat_led = 2;
@@ -484,15 +470,15 @@ void loop() {
                 vTaskDelay(200);
                 digitalWrite(PIN_LED, HIGH);
                 digitalWrite(PIN_LED, LOW);
-                if ((vit_cons < 0.025) || (vit_cons > -0.025))
+                if ((vit_cons < 0.025) && (vit_cons > -0.025))
                     etat_led = 0;
                 if ((vit_cons > 0.025) || (vit_cons < -0.025))
                     etat_led = 1;
                 break;
         }
 
-        Serial.printf("%3.5f LB:%x  RB:%x  A:%x  B:%x  %d  %d\n", val_vbatt, val_button_LB, val_button_RB, val_button_A,
-                      val_button_B, etat_ctl, etat_led);
+        Serial.printf("%3.5f LB:%x  RB:%x  A:%x  B:%x  %d  %d  %3.5f\n", val_vbatt, val_button_LB, val_button_RB,
+                      val_button_A, val_button_B, etat_ctl, etat_led, vit_cons);
         FlagCalcul = 0;
     }
 }

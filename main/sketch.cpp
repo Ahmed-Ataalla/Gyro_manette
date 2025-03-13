@@ -84,7 +84,7 @@ float vit_D_cons, vit_G_cons;
 float dir;
 
 float erreur_vit, erreur_vit_p;
-float P_vit, D_vit, D_vit_F, D_vit_F_p=0, ec_vit;
+float P_vit, D_vit, D_vit_F, D_vit_F_p = 0, ec_vit;
 
 short val_button;
 bool val_button_A;
@@ -457,6 +457,8 @@ void loop() {
                     etat_led = 1;
                 if (val_vbatt < 9.3)
                     etat_led = 2;
+                if ((dir > 0.025) || (dir < -0.025))
+                    etat_led = 1;
                 break;
             case 1:
                 digitalWrite(PIN_LED, LOW);
@@ -464,6 +466,8 @@ void loop() {
                     etat_led = 0;
                 if (val_vbatt < 9.3)
                     etat_led = 2;
+                if ((dir < 0.025) && (dir > -0.025))
+                    etat_led = 0;
                 break;
             case 2:
                 digitalWrite(PIN_LED, LOW);
@@ -473,6 +477,10 @@ void loop() {
                 if ((vit_cons < 0.025) && (vit_cons > -0.025))
                     etat_led = 0;
                 if ((vit_cons > 0.025) || (vit_cons < -0.025))
+                    etat_led = 1;
+                if ((dir < 0.025) && (dir > -0.025))
+                    etat_led = 0;
+                if ((dir > 0.025) || (dir < -0.025))
                     etat_led = 1;
                 break;
         }

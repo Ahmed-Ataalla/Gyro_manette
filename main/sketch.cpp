@@ -55,7 +55,7 @@ float theta_somme;
 // coefficient du filtre complémentaire
 float A_teta, B_teta;
 
-float vit = 0, vitf, vit_F_P = 0;
+float vit = 0, vit_F, vit_F_P = 0;
 float A_vit, B_vit;
 
 float ec_mot_D, ec_mot_G;
@@ -72,19 +72,20 @@ float Integrale_erreur_theta = 0;
 float P_theta, D_theta, I_theta;
 
 float kp_vit = 0, kd_vit = 0, ki_vit = 0;  // coeff
-float P_vit_D, D_vit_D, I_vit_D;
-float P_vit_G, D_vit_G, I_vit_G;
+float P_vit_D, D_vit_D, I_vit, Integrale_erreur_vit;
+float P_vit_G, D_vit_G;
 float vit_cons, erreur_vit_G, erreur_vit_G_p = 0;
 float erreur_vit_D, erreur_vit_D_p = 0;
 float ec_vitt_G, ec_vitt_D, ec_vitt_cons;
 float D_vit_D_F, D_vit_D_F_p = 0, D_vit_G_F, D_vit_G_F_p = 0;
-float Tau_D = 20;
+float Tau_D = 400;
 
 float vit_D_cons, vit_G_cons;
-float dir;
 
 float erreur_vit, erreur_vit_p;
 float P_vit, D_vit, D_vit_F, D_vit_F_p = 0, ec_vit;
+
+float erreur_dir, dir_c, delta_vit, kp_dir, erreur_dir_p, ec_dir, delta_vit_F_P = 0, delta_vit_F;
 
 short val_button;
 bool val_button_A;
@@ -166,24 +167,25 @@ void processGamepad(ControllerPtr ctl) {
     val_button_STICK_R = val_button & (1 << BUTTON_STICK_R);
 
     // retire la zone morte
-    if (ctl->axisY() > -25 && ctl->axisY() < 25 && ctl->axisX() > -25 && ctl->axisX() < 25) {
+    if (ctl->axisY() > -50 && ctl->axisY() < 50 && ctl->axisX() > -50 && ctl->axisX() < 50) {
         // code for when left joystick is at idle
-        dir = 0;
+        dir_c = 0;
         vit_cons = 0;
     }
 
-    dir = (-ctl->axisX() / 512.0) * 0.05;
-    vit_cons = (-ctl->axisY() / 512.0) * 0.12;
+    dir_c = (-ctl->axisX() / 512.0) * 0.075;
+    vit_cons = (-ctl->axisY() / 512.0) * 0.075;
 
     switch (etat_ctl) {
         case 0:
-            kp_theta = 0, kd_theta = 0, kp_vit = 0, kd_vit = 0, dir = 0;
+            kp_theta = 0, kd_theta = 0, kp_vit = 0, kd_vit = 0, dir_c = 0, kp_dir = 0;
             if (val_button_LB)
                 etat_ctl = 1;
             break;
         case 1:
-            kp_theta = 2.5, kd_theta = 0.052, kp_vit = 0.088, kd_vit = 0.01;
-            dir = (-ctl->axisX() / 512.0) * 0.05;
+            kp_theta = 2.5, kd_theta = 0.052, kp_vit = 0.01, kd_vit =0.0043, kp_dir = 1;
+            dir_c = (-ctl->axisX() / 512.0) * 0.075;
+            vit_cons = (-ctl->axisY() / 512.0) * 0.075;
             if (val_button_RB)
                 etat_ctl = 0;
             if (val_button_A)
@@ -194,7 +196,8 @@ void processGamepad(ControllerPtr ctl) {
                 etat_ctl = 0;
             break;
         case 2:
-            dir = 0.05;
+            dir_c = 0.075;
+            vit_cons = 0;
             if (val_button_A)
                 etat_ctl = 1;
             if (val_button_RB)
@@ -205,7 +208,8 @@ void processGamepad(ControllerPtr ctl) {
                 etat_ctl = 0;
             break;
         case 3:
-            dir = -0.05;
+            dir_c = -0.075;
+            vit_cons = 0;
             if (val_button_B)
                 etat_ctl = 1;
             if (val_button_RB)
@@ -262,14 +266,16 @@ void controle(void* parameters) {
         vitesse_D = -(2 * PI * RAYON_ROUE * (compteur_codeur_D - compteur_codeur_D_p) / NB_TICK_TOURCOMPLET) / (Te);
         vitesse_G = -(2 * PI * RAYON_ROUE * (compteur_codeur_G - compteur_codeur_G_p) / NB_TICK_TOURCOMPLET) / (Te);
         vit = (vitesse_D + vitesse_G) / 2;
-
+        vit_F = A_vit*vit + B_vit*vit_F_P;
         // calcul PID vitesse
         erreur_vit = vit_cons - vit;
         P_vit = kp_vit * erreur_vit;
         D_vit = kd_vit * (erreur_vit - erreur_vit_p) / (Te / 1000);
-        D_vit_F = (Tau_D / 1000) * A_vit * D_vit + B_vit * D_vit_F_p;
+        D_vit_F = A_vit * D_vit + B_vit * D_vit_F_p;
         D_vit_F_p = D_vit_F;
-        ec_vit = P_vit + D_vit_F;
+        Integrale_erreur_vit += (erreur_vit - erreur_vit_p) * (Te / 1000);
+        I_vit = ki_vit * Integrale_erreur_vit;
+        ec_vit = P_vit + D_vit_F + I_vit;
 
         ec_vit = saturation_ec_vit(ec_vit);
         theta_cons = ec_vit;
@@ -285,13 +291,19 @@ void controle(void* parameters) {
         erreur_theta_p = erreur_theta;
         // Calcul de la commande
         ec_theta = P_theta + D_theta + I_theta;
+        
+        //Asservissement dir
+        delta_vit = vitesse_D - vitesse_G;
+        delta_vit_F = A_vit * delta_vit + B_vit * delta_vit_F_P;
+        erreur_dir = dir_c - delta_vit_F;
+        erreur_dir_p = kp_dir * erreur_dir;
+        ec_dir = erreur_dir_p;
 
         // sature les commandes + offset pour retirer la zone morte des moteurs [-0.2, 0.2]
-        ec_mot_D = saturation_ec_mot(-(ec_theta - dir));
-        ec_mot_G = saturation_ec_mot(-(ec_theta + dir));
+        ec_mot_D = saturation_ec_mot(-(ec_theta - ec_dir));
+        ec_mot_G = saturation_ec_mot(-(ec_theta + ec_dir));
 
         // ecriture des PWM
-
         ledcWriteChannel(CANAL_PWM_A_G, (int)(1023 * (0.5 + ec_mot_G)));
         ledcWriteChannel(CANAL_PWM_B_G, (int)(1023 * (0.5 - ec_mot_G)));
         ledcWriteChannel(CANAL_PWM_A_D, (int)(1023 * (0.5 + ec_mot_D)));
@@ -299,6 +311,13 @@ void controle(void* parameters) {
 
         compteur_codeur_D_p = compteur_codeur_D;
         compteur_codeur_G_p = compteur_codeur_G;
+        delta_vit_F_P = delta_vit_F;
+        vit_F_P = vit_F;
+
+        if (val_button_Y) {
+            Serial.printf("dans if\n");
+            kp_theta = -2.5, kd_theta = -0.052, kp_vit = 0.1, kd_vit = 0.0043;//kpvit 0.088, kdvit 0.01
+        }
 
         FlagCalcul = 1;
         vTaskDelayUntil(&xLastWakeTime, pdMS_TO_TICKS(Te));
@@ -348,8 +367,8 @@ void setup() {
     B_teta = Tau / Te * A_teta;
 
     // calcul coeff vitesse
-    A_vit = 1 / (1 + Tau / Te);
-    B_vit = Tau / Te * A_vit;
+    A_vit = 1 / (1 + Tau_D / Te);
+    B_vit = Tau_D / Te * A_vit;
 
     // setup PWM
     ledcAttachChannel(PIN_PWM_A_D, FREQUENCE, RESOLUTION, CANAL_PWM_A_D);
@@ -388,15 +407,15 @@ void reception(char ch) {
 
         if (commande == "Tau") {
             Tau = valeur.toFloat();
-            A_vit = 1 / (1 + Tau / Te);
-            B_vit = Tau / Te * A_vit;
+            A_vit = 1 / (1 + Tau_D / Te);
+            B_vit = Tau_D / Te * A_vit;
             A_teta = 1 / (1 + Tau / Te);
             B_teta = Tau / Te * A_teta;
         }
         if (commande == "Te") {
             Te = valeur.toInt();
-            A_vit = 1 / (1 + Tau / Te);
-            B_vit = Tau / Te * A_vit;
+            A_vit = 1 / (1 + Tau_D / Te);
+            B_vit = Tau_D / Te * A_vit;
             A_teta = 1 / (1 + Tau / Te);
             B_teta = Tau / Te * A_teta;
         }
@@ -413,7 +432,6 @@ void reception(char ch) {
         if (commande == "ki_theta") {
             ki_theta = valeur.toFloat();
         }
-
         if (commande == "kp_vit") {
             kp_vit = valeur.toFloat();
         }
@@ -438,6 +456,12 @@ void reception(char ch) {
         if (commande == "vit_G_cons") {
             vit_G_cons = valeur.toFloat();
         }
+        if (commande == "ki_theta") {
+            ki_theta = valeur.toFloat();
+        }
+        if (commande == "kp_dir") {
+            kp_dir = valeur.toFloat();
+        }
 
         chaine = "";
     } else {
@@ -457,8 +481,6 @@ void loop() {
                     etat_led = 1;
                 if (val_vbatt < 9.3)
                     etat_led = 2;
-                if ((dir > 0.025) || (dir < -0.025))
-                    etat_led = 1;
                 break;
             case 1:
                 digitalWrite(PIN_LED, LOW);
@@ -466,27 +488,20 @@ void loop() {
                     etat_led = 0;
                 if (val_vbatt < 9.3)
                     etat_led = 2;
-                if ((dir < 0.025) && (dir > -0.025))
-                    etat_led = 0;
                 break;
             case 2:
                 digitalWrite(PIN_LED, LOW);
-                vTaskDelay(200);
+                vTaskDelay(250);
                 digitalWrite(PIN_LED, HIGH);
-                digitalWrite(PIN_LED, LOW);
+                vTaskDelay(250);
                 if ((vit_cons < 0.025) && (vit_cons > -0.025))
                     etat_led = 0;
                 if ((vit_cons > 0.025) || (vit_cons < -0.025))
                     etat_led = 1;
-                if ((dir < 0.025) && (dir > -0.025))
-                    etat_led = 0;
-                if ((dir > 0.025) || (dir < -0.025))
-                    etat_led = 1;
                 break;
         }
 
-        Serial.printf("%3.5f LB:%x  RB:%x  A:%x  B:%x  %d  %d  %3.5f\n", val_vbatt, val_button_LB, val_button_RB,
-                      val_button_A, val_button_B, etat_ctl, etat_led, vit_cons);
+        Serial.printf("%3.5f  %3.5f  %3.5f  %3.5f  %3.5f  %3.5f\n", val_vbatt, ec_dir, kp_dir,theta_cons,kp_vit,kd_vit);
         FlagCalcul = 0;
     }
 }
@@ -517,10 +532,10 @@ float saturation_ec_mot(float ec_mot) {
 
 float saturation_ec_vit(float ec_vit) {
     // saturation
-    if (ec_vit > 0.05)
-        ec_vit = 0.05;
-    if (ec_vit < -0.05)
-        ec_vit = -0.05;
+    if (ec_vit > 0.075)
+        ec_vit = 0.075;
+    if (ec_vit < -0.075)
+        ec_vit = -0.075;
 
     return ec_vit;
 }

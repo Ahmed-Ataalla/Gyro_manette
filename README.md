@@ -12,7 +12,7 @@ Note pour clonner ce projet : changer le lien du projet github, mettre celui de 
 
 Dans ce site : https://bluepad32.readthedocs.io/en/latest/supported_gamepads/
 
-https://bluepad32.readthedocs.io/en/latest/plat_arduino/
+Code exemple : https://bluepad32.readthedocs.io/en/latest/plat_arduino/
 
 # Plus d'info
 

@@ -41,6 +41,8 @@
 #define BUTTON_RB 5
 #define BUTTON_STICK_L 8
 #define BUTTON_STICK_R 9
+#define VIT_MAX 0.15
+#define DIR_MAX 0.2
 
 char FlagCalcul = 0;
 
@@ -173,8 +175,8 @@ void processGamepad(ControllerPtr ctl) {
         vit_cons = 0;
     }
 
-    dir_c = (-ctl->axisX() / 512.0) * 0.075;
-    vit_cons = (-ctl->axisY() / 512.0) * 0.075;
+    dir_c = (-ctl->axisX() / 512.0) * VIT_MAX;
+    vit_cons = (-ctl->axisY() / 512.0) * DIR_MAX;
 
     switch (etat_ctl) {
         case 0:
@@ -184,8 +186,8 @@ void processGamepad(ControllerPtr ctl) {
             break;
         case 1:
             kp_theta = 2.5, kd_theta = 0.052, kp_vit = 0.01, kd_vit =0.0043, kp_dir = 1;
-            dir_c = (-ctl->axisX() / 512.0) * 0.075;
-            vit_cons = (-ctl->axisY() / 512.0) * 0.075;
+            dir_c = (-ctl->axisX() / 512.0) * DIR_MAX;
+            vit_cons = (-ctl->axisY() / 512.0) * VIT_MAX;
             if (val_button_RB)
                 etat_ctl = 0;
             if (val_button_A)
@@ -196,7 +198,7 @@ void processGamepad(ControllerPtr ctl) {
                 etat_ctl = 0;
             break;
         case 2:
-            dir_c = 0.075;
+            dir_c = DIR_MAX;
             vit_cons = 0;
             if (val_button_A)
                 etat_ctl = 1;
@@ -208,7 +210,7 @@ void processGamepad(ControllerPtr ctl) {
                 etat_ctl = 0;
             break;
         case 3:
-            dir_c = -0.075;
+            dir_c = -DIR_MAX;
             vit_cons = 0;
             if (val_button_B)
                 etat_ctl = 1;
@@ -314,10 +316,10 @@ void controle(void* parameters) {
         delta_vit_F_P = delta_vit_F;
         vit_F_P = vit_F;
 
-        if (val_button_Y) {
-            Serial.printf("dans if\n");
-            kp_theta = -2.5, kd_theta = -0.052, kp_vit = 0.1, kd_vit = 0.0043;//kpvit 0.088, kdvit 0.01
-        }
+        // if (val_button_Y) {
+        //     Serial.printf("dans if\n");
+        //     kp_theta = -2.5, kd_theta = -0.052, kp_vit = 0.1, kd_vit = 0.0043;//kpvit 0.088, kdvit 0.01
+        // }
 
         FlagCalcul = 1;
         vTaskDelayUntil(&xLastWakeTime, pdMS_TO_TICKS(Te));
@@ -501,7 +503,7 @@ void loop() {
                 break;
         }
 
-        Serial.printf("%3.5f  %3.5f  %3.5f  %3.5f  %3.5f  %3.5f\n", val_vbatt, ec_dir, kp_dir,theta_cons,kp_vit,kd_vit);
+        Serial.printf("%3.5f  %d  %3.5f\n", val_vbatt, etat_ctl, theta_somme);
         FlagCalcul = 0;
     }
 }
@@ -532,10 +534,10 @@ float saturation_ec_mot(float ec_mot) {
 
 float saturation_ec_vit(float ec_vit) {
     // saturation
-    if (ec_vit > 0.075)
-        ec_vit = 0.075;
-    if (ec_vit < -0.075)
-        ec_vit = -0.075;
+    if (ec_vit > VIT_MAX)
+        ec_vit = VIT_MAX;
+    if (ec_vit < -VIT_MAX)
+        ec_vit = -VIT_MAX;
 
     return ec_vit;
 }
